@@ -2,27 +2,27 @@ import Chisel._
 
 class UartTx(val wtime: Int) extends Module {
   val io = new Bundle {
-    val txd = Bits(OUTPUT, 1)
-    val enq = Decoupled(Bits(width = 8)).flip;
+    val txd = UInt(OUTPUT, 1)
+    val enq = Decoupled(UInt(width = 8)).flip;
   }
   val idle  = UInt(10, width = 4)
   val wtime_ = UInt(wtime, log2Up(wtime))
 
   val state = Reg(init = idle)
   val count = Reg(init = wtime_)
-  val buf   = Reg(init = Bits("b111111111"))
+  val buf   = Reg(init = UInt("b111111111"))
 
   io.txd := buf(0)
 
   when (state === idle) {
     when (io.enq.valid) {
-      buf := io.enq.bits ## Bits("b0", 1)
+      buf := io.enq.bits ## UInt("b0", 1)
       count := wtime_
       state := UInt(0)
     }
   } .otherwise {
     when (count === UInt(0)) {
-      buf := Bits("b1", 1) ## buf(8, 1)
+      buf := UInt("b1", 1) ## buf(8, 1)
       count := wtime_
       state := state + UInt(1)
     } .otherwise {
@@ -35,8 +35,8 @@ class UartTx(val wtime: Int) extends Module {
 
 class UartRx(val wtime: Int) extends Module {
   val io = new Bundle {
-    val rxd = Bits(INPUT, 1)
-    val deq = Valid(Bits(width = 8))
+    val rxd = UInt(INPUT, 1)
+    val deq = Valid(UInt(width = 8))
   }
   val wtime_  = UInt(wtime, log2Up(wtime))
   val wtime_h = UInt(wtime / 2, log2Up(wtime)) // half period
@@ -44,7 +44,7 @@ class UartRx(val wtime: Int) extends Module {
 
   val state = Reg(init = idle)
   val count = Reg(init = wtime_h)
-  val buf   = Reg(init = Bits("b000000000"))
+  val buf   = Reg(init = UInt("b000000000"))
   val valid = Reg(init = Bool(false))
 
   when (state === idle) {
@@ -81,10 +81,10 @@ class UartRx(val wtime: Int) extends Module {
 
 class Uart(val wtime: Int) extends Module {
   val io = new Bundle {
-    val txd = Bits(OUTPUT, 1)
-    val rxd = Bits(INPUT, 1)
-    val enq = Decoupled(Bits(width = 8)).flip
-    val deq = Valid(Bits(width = 8))
+    val txd = UInt(OUTPUT, 1)
+    val rxd = UInt(INPUT, 1)
+    val enq = Decoupled(UInt(width = 8)).flip
+    val deq = Valid(UInt(width = 8))
   }
   val tx = Module(new UartTx(wtime))
   val rx = Module(new UartRx(wtime))
@@ -97,11 +97,11 @@ class Uart(val wtime: Int) extends Module {
 
 class BufferedUartTx(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle {
-    val txd = Bits(OUTPUT, 1)
-    val enq = Decoupled(Bits(width = 8)).flip
+    val txd = UInt(OUTPUT, 1)
+    val enq = Decoupled(UInt(width = 8)).flip
     val count = UInt(OUTPUT, log2Up(entries + 1))
   }
-  val queue = Module(new Queue(Bits(width = 8), entries))
+  val queue = Module(new Queue(UInt(width = 8), entries))
   val tx = Module(new UartTx(wtime))
 
   queue.io.enq <> io.enq
@@ -112,11 +112,11 @@ class BufferedUartTx(val wtime: Int, val entries: Int) extends Module {
 
 class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle {
-    val rxd = Bits(INPUT, 1)
-    val deq = Decoupled(Bits(width = 8))
+    val rxd = UInt(INPUT, 1)
+    val deq = Decoupled(UInt(width = 8))
     val count = UInt(OUTPUT, log2Up(entries + 1))
   }
-  val queue = Module(new Queue(Bits(width = 8), entries))
+  val queue = Module(new Queue(UInt(width = 8), entries))
   val rx = Module(new UartRx(wtime))
 
   queue.io.enq.bits := rx.io.deq.bits
@@ -128,10 +128,10 @@ class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
 
 class BufferedUart(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle {
-    val txd = Bits(OUTPUT, 1)
-    val rxd = Bits(INPUT, 1)
-    val enq = Decoupled(Bits(width = 8)).flip
-    val deq = Decoupled(Bits(width = 8))
+    val txd = UInt(OUTPUT, 1)
+    val rxd = UInt(INPUT, 1)
+    val enq = Decoupled(UInt(width = 8)).flip
+    val deq = Decoupled(UInt(width = 8))
   }
   val tx = Module(new BufferedUartTx(wtime, entries))
   val rx = Module(new BufferedUartRx(wtime, entries))
@@ -144,8 +144,8 @@ class BufferedUart(val wtime: Int, val entries: Int) extends Module {
 
 class UartLoopback extends Module {
   val io = new Bundle {
-    val tx = Decoupled(Bits(width = 8)).flip
-    val rx = Valid(Bits(width = 8))
+    val tx = Decoupled(UInt(width = 8)).flip
+    val rx = Valid(UInt(width = 8))
   }
   val uart = Module(new BufferedUart(0x1ADB, 16))
 
