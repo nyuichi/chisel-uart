@@ -5,7 +5,7 @@ class UartTx(val wtime: Int) extends Module {
     val txd = UInt(OUTPUT, 1)
     val enq = Decoupled(UInt(width = 8)).flip;
   }
-  val idle  = UInt(10, width = 4)
+  val idle  = UInt(10, 4)
   val wtime_ = UInt(wtime, log2Up(wtime))
 
   val state = Reg(init = idle)
@@ -16,13 +16,13 @@ class UartTx(val wtime: Int) extends Module {
 
   when (state === idle) {
     when (io.enq.valid) {
-      buf := io.enq.bits ## UInt("b0", 1)
+      buf := io.enq.bits ## UInt(0, 1)
       count := wtime_
       state := UInt(0)
     }
   } .otherwise {
     when (count === UInt(0)) {
-      buf := UInt("b1", 1) ## buf(8, 1)
+      buf := UInt(1, 1) ## buf(8, 1)
       count := wtime_
       state := state + UInt(1)
     } .otherwise {
@@ -40,7 +40,7 @@ class UartRx(val wtime: Int) extends Module {
   }
   val wtime_  = UInt(wtime, log2Up(wtime))
   val wtime_h = UInt(wtime / 2, log2Up(wtime)) // half period
-  val idle = UInt(10, width = 4)
+  val idle = UInt(10, 4)
 
   val state = Reg(init = idle)
   val count = Reg(init = wtime_h)
