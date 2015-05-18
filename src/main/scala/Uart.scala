@@ -5,7 +5,7 @@ class UartTx(val wtime: Int) extends Module {
     val txd = UInt(OUTPUT, 1)
     val enq = Decoupled(UInt(width = 8)).flip;
   }
-  val idle  = UInt(10, 4)
+  val idle :: runnings  = Enum(UInt(), 11)
   val wtime_ = UInt(wtime, log2Up(wtime))
 
   val state = Reg(init = idle)
@@ -14,23 +14,26 @@ class UartTx(val wtime: Int) extends Module {
 
   io.txd := buf(0)
 
-  when (state === idle) {
-    when (io.enq.valid) {
-      buf := io.enq.bits ## UInt(0, 1)
-      count := wtime_
-      state := UInt(0)
+  switch (state) {
+    is(idle) {
+      when (io.enq.valid) {
+        buf := io.enq.bits ## UInt("b0")
+        count := wtime_
+        state := runnings.last
+      }
     }
-  } .otherwise {
-    when (count === UInt(0)) {
-      buf := UInt(1, 1) ## buf(8, 1)
-      count := wtime_
-      state := state + UInt(1)
-    } .otherwise {
-      count := count - UInt(1);
+    is(runnings) {
+      when (count === UInt(0)) {
+        buf := UInt("b1") ## buf(8, 1)
+        count := wtime_
+        state := state - UInt(1)
+      } .otherwise {
+        count := count - UInt(1);
+      }
     }
   }
 
-  io.enq.ready := state === UInt(10)
+  io.enq.ready := (state === idle)
 }
 
 class UartRx(val wtime: Int) extends Module {
@@ -40,38 +43,42 @@ class UartRx(val wtime: Int) extends Module {
   }
   val wtime_  = UInt(wtime, log2Up(wtime))
   val wtime_h = UInt(wtime / 2, log2Up(wtime)) // half period
-  val idle = UInt(10, 4)
+  val idle :: stop :: runnings = Enum(UInt(), 11)
 
   val state = Reg(init = idle)
   val count = Reg(init = wtime_h)
   val buf   = Reg(init = UInt("b000000000"))
   val valid = Reg(init = Bool(false))
 
-  when (state === idle) {
-    when (io.rxd === UInt(0)) {
-      when (count != UInt(0)) {
-        count := count - UInt(1)
-      } .otherwise {
-        count := wtime_
-        state := UInt(0)
-        valid := Bool(false)
+  switch (state) {
+    is(idle) {
+      when (io.rxd === UInt(0)) {
+        when (count != UInt(0)) {
+          count := count - UInt(1)
+        } .otherwise {
+          count := wtime_
+          state := runnings.last
+          valid := Bool(false)
+        }
       }
     }
-  } .elsewhen (state === UInt(9)) {
-    when (count === wtime_h) {
-      count := count - UInt(1)
-      state := idle
-      valid := Bool(true)
-    } .otherwise {
-      count := count - UInt(1)
+    is(runnings) {
+      when (count === UInt(0)) {
+        buf := io.rxd ## buf(8, 1)
+        count := wtime_
+        state := state - UInt(1)
+      } .otherwise {
+        count := count - UInt(1)
+      }
     }
-  } .otherwise {
-    when (count === UInt(0)) {
-      buf := io.rxd ## buf(8, 1)
-      count := wtime_
-      state := state + UInt(1)
-    } .otherwise {
-      count := count - UInt(1)
+    is(stop) {
+      when (count === wtime_h) {
+        count := count - UInt(1)
+        state := idle
+        valid := Bool(true)
+      } .otherwise {
+        count := count - UInt(1)
+      }
     }
   }
 
