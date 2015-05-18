@@ -3,7 +3,7 @@ import Chisel._
 class UartTx(val wtime: Int) extends Module {
   val io = new Bundle {
     val txd = UInt(OUTPUT, 1)
-    val enq = Decoupled(UInt(width = 8)).flip;
+    val enq = Decoupled(UInt(width = 8)).flip
   }
   val time = UInt(wtime, log2Up(wtime))
   val idle :: runnings  = Enum(UInt(), 11)
@@ -28,7 +28,7 @@ class UartTx(val wtime: Int) extends Module {
         count := time
         state := state - UInt(1)
       } .otherwise {
-        count := count - UInt(1);
+        count := count - UInt(1)
       }
     }
   }
