@@ -5,11 +5,11 @@ class UartTx(val wtime: Int) extends Module {
     val txd = UInt(OUTPUT, 1)
     val enq = Decoupled(UInt(width = 8)).flip;
   }
+  val time = UInt(wtime, log2Up(wtime))
   val idle :: runnings  = Enum(UInt(), 11)
-  val wtime_ = UInt(wtime, log2Up(wtime))
 
   val state = Reg(init = idle)
-  val count = Reg(init = wtime_)
+  val count = Reg(init = time)
   val buf   = Reg(init = UInt("b111111111"))
 
   io.txd := buf(0)
@@ -18,14 +18,14 @@ class UartTx(val wtime: Int) extends Module {
     is(idle) {
       when (io.enq.valid) {
         buf := io.enq.bits ## UInt("b0")
-        count := wtime_
+        count := time
         state := runnings.last
       }
     }
     is(runnings) {
       when (count === UInt(0)) {
         buf := UInt("b1") ## buf(8, 1)
-        count := wtime_
+        count := time
         state := state - UInt(1)
       } .otherwise {
         count := count - UInt(1);
@@ -41,12 +41,12 @@ class UartRx(val wtime: Int) extends Module {
     val rxd = UInt(INPUT, 1)
     val deq = Valid(UInt(width = 8))
   }
-  val wtime_  = UInt(wtime, log2Up(wtime))
-  val wtime_h = UInt(wtime / 2, log2Up(wtime)) // half period
+  val time = UInt(wtime, log2Up(wtime))
+  val time_h = UInt(wtime / 2, log2Up(wtime)) // half period
   val idle :: stop :: runnings = Enum(UInt(), 11)
 
   val state = Reg(init = idle)
-  val count = Reg(init = wtime_h)
+  val count = Reg(init = time_h)
   val buf   = Reg(init = UInt("b000000000"))
   val valid = Reg(init = Bool(false))
 
@@ -56,7 +56,7 @@ class UartRx(val wtime: Int) extends Module {
         when (count != UInt(0)) {
           count := count - UInt(1)
         } .otherwise {
-          count := wtime_
+          count := time
           state := runnings.last
           valid := Bool(false)
         }
@@ -65,14 +65,14 @@ class UartRx(val wtime: Int) extends Module {
     is(runnings) {
       when (count === UInt(0)) {
         buf := io.rxd ## buf(8, 1)
-        count := wtime_
+        count := time
         state := state - UInt(1)
       } .otherwise {
         count := count - UInt(1)
       }
     }
     is(stop) {
-      when (count === wtime_h) {
+      when (count === time_h) {
         count := count - UInt(1)
         state := idle
         valid := Bool(true)
