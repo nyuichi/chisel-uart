@@ -2,7 +2,7 @@ import Chisel._
 
 class UartTx(val wtime: Int) extends Module {
   val io = new Bundle {
-    val txd = UInt(OUTPUT, 1)
+    val txd = Bool(OUTPUT)
     val enq = Decoupled(UInt(width = 8)).flip
   }
   val time = UInt(wtime, log2Up(wtime))
@@ -38,7 +38,7 @@ class UartTx(val wtime: Int) extends Module {
 
 class UartRx(val wtime: Int) extends Module {
   val io = new Bundle {
-    val rxd = UInt(INPUT, 1)
+    val rxd = Bool(INPUT)
     val deq = Valid(UInt(width = 8))
   }
   val time = UInt(wtime, log2Up(wtime))
@@ -88,8 +88,8 @@ class UartRx(val wtime: Int) extends Module {
 
 class Uart(val wtime: Int) extends Module {
   val io = new Bundle {
-    val txd = UInt(OUTPUT, 1)
-    val rxd = UInt(INPUT, 1)
+    val txd = Bool(OUTPUT)
+    val rxd = Bool(INPUT)
     val enq = Decoupled(UInt(width = 8)).flip
     val deq = Valid(UInt(width = 8))
   }
@@ -104,7 +104,7 @@ class Uart(val wtime: Int) extends Module {
 
 class BufferedUartTx(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle {
-    val txd = UInt(OUTPUT, 1)
+    val txd = Bool(OUTPUT)
     val enq = Decoupled(UInt(width = 8)).flip
     val count = UInt(OUTPUT, log2Up(entries + 1))
   }
@@ -119,7 +119,7 @@ class BufferedUartTx(val wtime: Int, val entries: Int) extends Module {
 
 class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle {
-    val rxd = UInt(INPUT, 1)
+    val rxd = Bool(INPUT)
     val deq = Decoupled(UInt(width = 8))
     val count = UInt(OUTPUT, log2Up(entries + 1))
   }
@@ -135,8 +135,8 @@ class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
 
 class BufferedUart(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle {
-    val txd = UInt(OUTPUT, 1)
-    val rxd = UInt(INPUT, 1)
+    val txd = Bool(OUTPUT)
+    val rxd = Bool(INPUT)
     val enq = Decoupled(UInt(width = 8)).flip
     val deq = Decoupled(UInt(width = 8))
   }
