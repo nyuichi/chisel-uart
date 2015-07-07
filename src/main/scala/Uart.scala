@@ -39,7 +39,7 @@ class UartTx(val wtime: Int) extends Module {
 class UartRx(val wtime: Int) extends Module {
   val io = new Bundle {
     val rxd = Bool(INPUT)
-    val deq = Valid(UInt(width = 8))
+    val deq = Decoupled(UInt(width = 8))
   }
   val time = UInt(wtime, log2Up(wtime))
   val time_h = UInt(wtime / 2, log2Up(wtime)) // half period
@@ -49,6 +49,10 @@ class UartRx(val wtime: Int) extends Module {
   val count = Reg(init = time_h)
   val buf   = Reg(init = UInt("b000000000"))
   val valid = Reg(init = Bool(false))
+
+  when (valid && io.deq.ready) {
+    valid := Bool(false)
+  }
 
   switch (state) {
     is(idle) {
@@ -91,7 +95,7 @@ class Uart(val wtime: Int) extends Module {
     val txd = Bool(OUTPUT)
     val rxd = Bool(INPUT)
     val enq = Decoupled(UInt(width = 8)).flip
-    val deq = Valid(UInt(width = 8))
+    val deq = Decoupled(UInt(width = 8))
   }
   val tx = Module(new UartTx(wtime))
   val rx = Module(new UartRx(wtime))
@@ -126,8 +130,7 @@ class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
   val queue = Module(new Queue(UInt(width = 8), entries))
   val rx = Module(new UartRx(wtime))
 
-  queue.io.enq.bits := rx.io.deq.bits
-  queue.io.enq.valid := rx.io.deq.valid
+  queue.io.enq <> rx.io.deq
   io.deq <> queue.io.deq
   io.rxd <> rx.io.rxd
   io.count <> queue.io.count
@@ -155,12 +158,58 @@ object Uart {
     chiselMainTest(args, () => Module(new UartLoopback)) { c =>
       new UartLoopbackTests(c)
     }
+    chiselMainTest(args, () => Module(new UartBufferedLoopback)) { c =>
+      new UartBufferedLoopbackTests(c)
+    }
   }
 
   class UartLoopback extends Module {
     val io = new Bundle {
       val tx = Decoupled(UInt(width = 8)).flip
-      val rx = Valid(UInt(width = 8))
+      val rx = Decoupled(UInt(width = 8))
+    }
+    val uart = Module(new Uart(0x1ADB))
+
+    uart.io.rxd := uart.io.txd
+
+    io.tx <> uart.io.enq
+    io.rx <> uart.io.deq
+  }
+
+  class UartLoopbackTests(c: UartLoopback) extends Tester(c, isTrace = false) {
+    poke(c.io.tx.valid, 0)
+
+    step(10)
+
+    for (value <- "Hello") {
+      while (peek(c.io.tx.ready) == 0) {
+        step(1)
+      }
+      poke(c.io.tx.valid, 1)
+      poke(c.io.tx.bits, value.intValue())
+
+      step(1)
+
+      poke(c.io.tx.valid, 0)
+
+      while (peek(c.io.rx.valid) == 0) {
+        step(1)
+      }
+      poke(c.io.rx.ready, 1)
+      expect(c.io.rx.bits, value.intValue())
+
+      println("expect: " + value.intValue() + ", and got: " + peek(c.io.rx.bits))
+
+      step(1)
+
+      poke(c.io.rx.ready, 0)
+    }
+  }
+
+  class UartBufferedLoopback extends Module {
+    val io = new Bundle {
+      val tx = Decoupled(UInt(width = 8)).flip
+      val rx = Decoupled(UInt(width = 8))
     }
     val uart = Module(new BufferedUart(0x1ADB, 16))
 
@@ -170,20 +219,52 @@ object Uart {
     io.rx <> uart.io.deq
   }
 
-  class UartLoopbackTests(c: UartLoopback) extends Tester(c) {
+  class UartBufferedLoopbackTests(c: UartBufferedLoopback) extends Tester(c, isTrace = false) {
+
     poke(c.io.tx.valid, 0)
+    poke(c.io.rx.ready, 0)
 
-    step(10)
+    step(1)
 
-    poke(c.io.tx.valid, 1)
-    poke(c.io.tx.bits, 0xAA)
+    def send(values : Seq[Int]) {
+      for (value <- values) {
+        while (peek(c.io.tx.ready) == 0) {
+          step(1)
+        }
 
-    do {
+        poke(c.io.tx.valid, 1)
+        poke(c.io.tx.bits, value)
+
+        println("sent: " + value)
+
+        step(1)
+
+        poke(c.io.tx.valid, 0)
+      }
+    }
+
+    def recv(values : Seq[Int]) {
+      poke(c.io.rx.ready, 1)
+
+      for (value <- values) {
+        while (peek(c.io.rx.valid) == 0) {
+          step(1)
+        }
+
+        expect(c.io.rx.bits, value)
+
+        println("recv: " + peek(c.io.rx.bits))
+
+        step(1)
+      }
+
+      poke(c.io.rx.ready, 1)
+
       step(1)
-    } while (peek(c.io.rx.valid) == 0)
+    }
 
-    expect(c.io.rx.valid, 1)
-    expect(c.io.rx.bits, 0xAA)
+    send(List[Int](0x12, 0x34, 0x56, 0x78, 0x90))
+    recv(List[Int](0x12, 0x34, 0x56, 0x78, 0x90))
   }
 
 }
