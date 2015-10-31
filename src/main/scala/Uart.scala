@@ -186,7 +186,7 @@ object Uart {
         step(1)
       }
       poke(c.io.tx.valid, 1)
-      poke(c.io.tx.bits, value.intValue())
+      poke(c.io.tx.bits, value.toInt)
 
       step(1)
 
@@ -196,9 +196,9 @@ object Uart {
         step(1)
       }
       poke(c.io.rx.ready, 1)
-      expect(c.io.rx.bits, value.intValue())
+      expect(c.io.rx.bits, value.toInt)
 
-      println("expect: " + value.intValue() + ", and got: " + peek(c.io.rx.bits))
+      println("expect: " + value.toInt + ", and got: " + peek(c.io.rx.bits))
 
       step(1)
 
