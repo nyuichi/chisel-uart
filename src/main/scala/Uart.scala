@@ -90,13 +90,15 @@ class UartRx(val wtime: Int) extends Module {
   io.deq.bits := buf(7, 0)
 }
 
+class UartIO() extends Bundle {
+  val txd = Bool(INPUT)
+  val rxd = Bool(OUTPUT)
+  val enq = Decoupled(UInt(width = 8))
+  val deq = Decoupled(UInt(width = 8)).flip
+}
+
 class Uart(val wtime: Int) extends Module {
-  val io = new Bundle {
-    val txd = Bool(OUTPUT)
-    val rxd = Bool(INPUT)
-    val enq = Decoupled(UInt(width = 8)).flip
-    val deq = Decoupled(UInt(width = 8))
-  }
+  val io = (new UartIO).flip
   val tx = Module(new UartTx(wtime))
   val rx = Module(new UartRx(wtime))
 
@@ -137,12 +139,7 @@ class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
 }
 
 class BufferedUart(val wtime: Int, val entries: Int) extends Module {
-  val io = new Bundle {
-    val txd = Bool(OUTPUT)
-    val rxd = Bool(INPUT)
-    val enq = Decoupled(UInt(width = 8)).flip
-    val deq = Decoupled(UInt(width = 8))
-  }
+  val io = (new UartIO).flip
   val tx = Module(new BufferedUartTx(wtime, entries))
   val rx = Module(new BufferedUartRx(wtime, entries))
 
@@ -266,5 +263,4 @@ object Uart {
     send(List[Int](0x12, 0x34, 0x56, 0x78, 0x90))
     recv(List[Int](0x12, 0x34, 0x56, 0x78, 0x90))
   }
-
 }
