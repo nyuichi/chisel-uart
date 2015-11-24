@@ -91,21 +91,25 @@ class UartRx(val wtime: Int) extends Module {
 }
 
 class UartIO() extends Bundle {
-  val txd = Bool(INPUT)
-  val rxd = Bool(OUTPUT)
   val enq = Decoupled(UInt(width = 8))
   val deq = Decoupled(UInt(width = 8)).flip
 }
 
 class Uart(val wtime: Int) extends Module {
-  val io = (new UartIO).flip
+  val io = new Bundle {
+    val ctl = (new UartIO).flip
+    val raw = new Bundle {
+      val txd = Bool(OUTPUT)
+      val rxd = Bool(INPUT)
+    }
+  }
   val tx = Module(new UartTx(wtime))
   val rx = Module(new UartRx(wtime))
 
-  tx.io.txd <> io.txd
-  tx.io.enq <> io.enq
-  rx.io.rxd <> io.rxd
-  rx.io.deq <> io.deq
+  tx.io.txd <> io.raw.txd
+  rx.io.rxd <> io.raw.rxd
+  tx.io.enq <> io.ctl.enq
+  rx.io.deq <> io.ctl.deq
 }
 
 class BufferedUartTx(val wtime: Int, val entries: Int) extends Module {
@@ -139,14 +143,20 @@ class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
 }
 
 class BufferedUart(val wtime: Int, val entries: Int) extends Module {
-  val io = (new UartIO).flip
+  val io = new Bundle{
+    val ctl = (new UartIO).flip
+    val raw = new Bundle {
+      val txd = Bool(OUTPUT)
+      val rxd = Bool(INPUT)
+    }
+  }
   val tx = Module(new BufferedUartTx(wtime, entries))
   val rx = Module(new BufferedUartRx(wtime, entries))
 
-  tx.io.txd <> io.txd
-  tx.io.enq <> io.enq
-  rx.io.rxd <> io.rxd
-  rx.io.deq <> io.deq
+  tx.io.txd <> io.raw.txd
+  rx.io.rxd <> io.raw.rxd
+  tx.io.enq <> io.ctl.enq
+  rx.io.deq <> io.ctl.deq
 }
 
 object Uart {
@@ -167,10 +177,10 @@ object Uart {
     }
     val uart = Module(new Uart(0x1ADB))
 
-    uart.io.rxd := uart.io.txd
+    uart.io.raw.rxd := uart.io.raw.txd
 
-    io.tx <> uart.io.enq
-    io.rx <> uart.io.deq
+    io.tx <> uart.io.ctl.enq
+    io.rx <> uart.io.ctl.deq
   }
 
   class UartLoopbackTests(c: UartLoopback) extends Tester(c, isTrace = false) {
@@ -210,10 +220,10 @@ object Uart {
     }
     val uart = Module(new BufferedUart(0x1ADB, 16))
 
-    uart.io.rxd := uart.io.txd
+    uart.io.raw.rxd := uart.io.raw.txd
 
-    io.tx <> uart.io.enq
-    io.rx <> uart.io.deq
+    io.tx <> uart.io.ctl.enq
+    io.rx <> uart.io.ctl.deq
   }
 
   class UartBufferedLoopbackTests(c: UartBufferedLoopback) extends Tester(c, isTrace = false) {
