@@ -95,19 +95,21 @@ class UartIO() extends Bundle {
   val deq = Decoupled(UInt(width = 8)).flip
 }
 
+class UartPeripheral extends Bundle {
+  val txd = Bool(OUTPUT)
+  val rxd = Bool(INPUT)
+}
+
 class Uart(val wtime: Int) extends Module {
   val io = new Bundle {
     val ctl = (new UartIO).flip
-    val raw = new Bundle {
-      val txd = Bool(OUTPUT)
-      val rxd = Bool(INPUT)
-    }
+    val pins = new UartPeripheral
   }
   val tx = Module(new UartTx(wtime))
   val rx = Module(new UartRx(wtime))
 
-  tx.io.txd <> io.raw.txd
-  rx.io.rxd <> io.raw.rxd
+  tx.io.txd <> io.pins.txd
+  rx.io.rxd <> io.pins.rxd
   tx.io.enq <> io.ctl.enq
   rx.io.deq <> io.ctl.deq
 }
@@ -145,16 +147,13 @@ class BufferedUartRx(val wtime: Int, val entries: Int) extends Module {
 class BufferedUart(val wtime: Int, val entries: Int) extends Module {
   val io = new Bundle{
     val ctl = (new UartIO).flip
-    val raw = new Bundle {
-      val txd = Bool(OUTPUT)
-      val rxd = Bool(INPUT)
-    }
+    val pins = new UartPeripheral
   }
   val tx = Module(new BufferedUartTx(wtime, entries))
   val rx = Module(new BufferedUartRx(wtime, entries))
 
-  tx.io.txd <> io.raw.txd
-  rx.io.rxd <> io.raw.rxd
+  tx.io.txd <> io.pins.txd
+  rx.io.rxd <> io.pins.rxd
   tx.io.enq <> io.ctl.enq
   rx.io.deq <> io.ctl.deq
 }
@@ -171,101 +170,95 @@ object Uart {
   }
 
   class UartLoopback extends Module {
-    val io = new Bundle {
-      val tx = Decoupled(UInt(width = 8)).flip
-      val rx = Decoupled(UInt(width = 8))
-    }
+    val io = (new UartIO).flip
     val uart = Module(new Uart(0x1ADB))
 
-    uart.io.raw.rxd := uart.io.raw.txd
+    uart.io.pins.rxd := uart.io.pins.txd
 
-    io.tx <> uart.io.ctl.enq
-    io.rx <> uart.io.ctl.deq
+    io.enq <> uart.io.ctl.enq
+    io.deq <> uart.io.ctl.deq
   }
 
   class UartLoopbackTests(c: UartLoopback) extends Tester(c, isTrace = false) {
-    poke(c.io.tx.valid, 0)
+    poke(c.io.deq.valid, 0)
 
     step(10)
 
     for (value <- "Hello") {
-      while (peek(c.io.tx.ready) == 0) {
+      while (peek(c.io.enq.ready) == 0) {
         step(1)
       }
-      poke(c.io.tx.valid, 1)
-      poke(c.io.tx.bits, value.toInt)
+      poke(c.io.enq.valid, 1)
+      poke(c.io.enq.bits, value.toInt)
 
       step(1)
 
-      poke(c.io.tx.valid, 0)
+      poke(c.io.enq.valid, 0)
 
-      while (peek(c.io.rx.valid) == 0) {
+      while (peek(c.io.deq.valid) == 0) {
         step(1)
       }
-      poke(c.io.rx.ready, 1)
-      expect(c.io.rx.bits, value.toInt)
+      poke(c.io.deq.ready, 1)
+      expect(c.io.deq.bits, value.toInt)
 
-      println("expect: " + value.toInt + ", and got: " + peek(c.io.rx.bits))
+      println("expect: " + value.toInt + ", and got: " + peek(c.io.deq.bits))
 
       step(1)
 
-      poke(c.io.rx.ready, 0)
+      poke(c.io.deq.ready, 0)
     }
   }
 
   class UartBufferedLoopback extends Module {
-    val io = new Bundle {
-      val tx = Decoupled(UInt(width = 8)).flip
-      val rx = Decoupled(UInt(width = 8))
-    }
+    val io = (new UartIO).flip
     val uart = Module(new BufferedUart(0x1ADB, 16))
 
-    uart.io.raw.rxd := uart.io.raw.txd
+    uart.io.pins.rxd := uart.io.pins.txd
 
-    io.tx <> uart.io.ctl.enq
-    io.rx <> uart.io.ctl.deq
+    io.enq <> uart.io.ctl.enq
+    io.deq <> uart.io.ctl.deq
   }
 
   class UartBufferedLoopbackTests(c: UartBufferedLoopback) extends Tester(c, isTrace = false) {
 
-    poke(c.io.tx.valid, 0)
-    poke(c.io.rx.ready, 0)
+    poke(c.io.enq.valid, 0)
+    poke(c.io.deq.ready, 0)
 
     step(1)
 
     def send(values : Seq[Int]) {
       for (value <- values) {
-        while (peek(c.io.tx.ready) == 0) {
+        while (peek(c.io.enq.ready) == 0) {
           step(1)
         }
 
-        poke(c.io.tx.valid, 1)
-        poke(c.io.tx.bits, value)
+        poke(c.io.enq.valid, 1)
+        poke(c.io.enq.bits, value)
 
         println("sent: " + value)
 
         step(1)
 
-        poke(c.io.tx.valid, 0)
+        poke(c.io.enq.valid, 0)
       }
     }
 
     def recv(values : Seq[Int]) {
-      poke(c.io.rx.ready, 1)
+      poke(c.io.deq.ready, 1)
 
       for (value <- values) {
-        while (peek(c.io.rx.valid) == 0) {
+        while (peek(c.io.deq.valid) == 0) {
           step(1)
         }
 
-        expect(c.io.rx.bits, value)
+        expect(c.io.deq.bits, value)
 
-        println("recv: " + peek(c.io.rx.bits))
+        println("recv: " + peek(c.io.deq.bits))
 
         step(1)
       }
 
-      poke(c.io.rx.ready, 1)
+      poke(c.io.deq.ready, 1)
 
       step(1)
     }
