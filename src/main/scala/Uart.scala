@@ -158,6 +158,32 @@ class BufferedUart(val wtime: Int, val entries: Int) extends Module {
   rx.io.deq <> io.ctl.deq
 }
 
+class DummyUart(val input: Array[Int]) extends Module {
+  val io = (new UartIO).flip
+
+  val arr = Vec(input.map(x => UInt(x, width=8)))
+  val idx = RegInit(UInt(0, width = log2Up(input.size + 1)))
+
+  io.enq.ready := Bool(true)
+  when (io.enq.valid) {
+    printf("write: %d\n", io.enq.bits)
+  }
+
+  val obuf = Reg(Valid(UInt(width = 8)))
+  io.deq.valid := obuf.valid
+  io.deq.bits  := obuf.bits
+
+  when (io.deq.ready && idx < UInt(input.size)) {
+    obuf.bits := arr(idx)
+    obuf.valid := Bool(true)
+    printf("read:  %d\n", arr(idx))
+    idx  := idx + UInt(1)
+  } .otherwise {
+    obuf.bits := UInt(0)
+    obuf.valid := Bool(false)
+  }
+}
+
 object Uart {
 
   def main(args: Array[String]): Unit = {
@@ -166,6 +192,9 @@ object Uart {
     }
     chiselMainTest(args, () => Module(new UartBufferedLoopback)) { c =>
       new UartBufferedLoopbackTests(c)
+    }
+    chiselMainTest(args, () => Module(new DummyUart(Array(0xba, 0xad, 0xf0, 0x0d)))) { c =>
+      new DummyUartTests(c)
     }
   }
 
@@ -265,5 +294,31 @@ object Uart {
 
     send(List[Int](0x12, 0x34, 0x56, 0x78, 0x90))
     recv(List[Int](0x12, 0x34, 0x56, 0x78, 0x90))
+  }
+
+  class DummyUartTests(c: DummyUart) extends Tester(c, isTrace = false) {
+    poke(c.io.enq.valid, 0)
+    poke(c.io.deq.ready, 1)
+    expect(c.io.enq.ready, 1)
+
+    while (peek(c.io.deq.valid) == 0) {
+      step(1)
+    }
+
+    while (peek(c.io.deq.valid) == 1) {
+      println("recv", peek(c.io.deq.bits))
+      step(1)
+    }
+    poke(c.io.deq.ready, 0)
+
+    val input = Array(0xde, 0xad, 0xbe, 0xef)
+
+    poke(c.io.enq.valid, 1)
+    for (b <- input) {
+      println("send", b)
+      poke(c.io.enq.bits, b)
+      step(1)
+    }
+    poke(c.io.enq.valid, 0)
   }
 }
