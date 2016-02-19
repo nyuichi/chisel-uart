@@ -164,23 +164,31 @@ class DummyUart(val input: Array[Int]) extends Module {
   val arr = Vec(input.map(x => UInt(x, width=8)))
   val idx = RegInit(UInt(0, width = log2Up(input.size + 1)))
 
+  println("input: ", input.size)
+
   io.enq.ready := Bool(true)
   when (io.enq.valid) {
-    printf("write: %d\n", io.enq.bits)
+    printf("write to DummyUart: %d\n", io.enq.bits)
   }
 
   val obuf = Reg(Valid(UInt(width = 8)))
   io.deq.valid := obuf.valid
   io.deq.bits  := obuf.bits
 
-  when (io.deq.ready && idx < UInt(input.size)) {
-    obuf.bits := arr(idx)
-    obuf.valid := Bool(true)
-    printf("read:  %d\n", arr(idx))
-    idx  := idx + UInt(1)
-  } .otherwise {
+  if (input.isEmpty) {
     obuf.bits := UInt(0)
     obuf.valid := Bool(false)
+
+  } else {
+    when (io.deq.ready && idx < UInt(input.size)) {
+      obuf.bits := arr(idx)
+      obuf.valid := Bool(true)
+      printf("read from DummyUart : %d\n", arr(idx))
+      idx  := idx + UInt(1)
+    } .otherwise {
+      obuf.bits := UInt(0)
+      obuf.valid := Bool(false)
+    }
   }
 }
 
